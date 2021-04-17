@@ -1,0 +1,168 @@
+(assignment2_MMD) C:\Users\anike>pyspark
+Python 3.6.12 |Anaconda, Inc.| (default, Sep  9 2020, 00:29:25) [MSC v.1916 64 bit (AMD64)] on win32
+Type "help", "copyright", "credits" or "license" for more information.
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /__ / .__/\_,_/_/ /_/\_\   version 3.0.0
+      /_/
+
+Using Python version 3.6.12 (default, Sep  9 2020 00:29:25)
+SparkSession available as 'spark'.
+>>>
+>>> from pyspark.sql import SparkSession
+>>> from pyspark.sql.types import *
+>>> from pyspark.sql.functions import *
+>>> from pyspark.ml.feature import VectorAssembler
+>>> from pyspark.ml.regression import DecisionTreeRegressor, LinearRegression
+>>> from pyspark.ml.evaluation import *
+>>> from pyspark.ml.tuning import *
+>>>
+>>> spark = SparkSession.builder \
+...     .master("local") \
+...     .appName("Decision Tree") \
+...     .getOrCreate()
+>>>
+>>> CURRENT_WORKING_DIR = "C:/Users/anike/Desktop/Education/George Mason University/Sem 4-Fall - 2020/CS 657 - Mining Massive Datasets/Assignments/Assignment 2/"
+>>> schema = StructType([StructField("id", StringType(),False),
+...                     StructField("vendor_id",IntegerType(),False),
+...                     StructField("passenger_count",IntegerType(),False),
+...                     StructField("trip_duration",DoubleType(),False),
+...                     StructField("month",IntegerType(),False),
+...                     StructField("day",IntegerType(),False),
+...                     StructField("hour",IntegerType(),False),
+...                     StructField("weekday",IntegerType(),False),
+...                     StructField("distance",DoubleType(),False)])
+>>> print("Reading data")
+Reading data
+>>> data = spark.read.csv(CURRENT_WORKING_DIR + "cleaned.csv",schema=schema, header=True)
+>>> print("Data read")
+Data read
+>>> # Implement my own evaluator:
+... # Since the Cross validator maximises the loss. I will minimize it lol
+... class myRmseEvaluator():
+...     def __init__(self, oldEval):
+...         self.oldEval = oldEval
+...
+...     def evaluate(self, dataset):
+...         return -self.oldEval.evaluate(dataset)
+...
+...     # It would make sense to implement only the following function, rather than returning the result from the negative evaluate function
+...     def isLargerBetter(self):
+...         return True
+...
+>>>
+>>> """
+... REGRESSION
+... """
+'\nREGRESSION\n'
+>>>
+>>> model_data = data.drop("id")
+>>> vectorizer = VectorAssembler().setInputCols(["vendor_id","passenger_count","month","day","hour","weekday","distance"]).setOutputCol("features")
+>>> model_data = vectorizer.transform(model_data).select("features","trip_duration")
+>>>
+>>> # Split the data 70-30
+... train_test_data = model_data.randomSplit([0.8,0.2],16430212)
+>>> train_data = train_test_data[0]
+>>> test_data = train_test_data[1]
+>>>
+>>> print("Train DT")
+Train DT
+>>> rmseEvaluator = myRmseEvaluator(RegressionEvaluator(predictionCol="prediction",labelCol="trip_duration", metricName="rmse"))
+>>> maeEvaluator = RegressionEvaluator(predictionCol="prediction",labelCol="trip_duration", metricName="mae")
+>>> dtr = DecisionTreeRegressor(maxDepth=3).setFeaturesCol("features").setLabelCol("trip_duration")
+>>> trained_model = dtr.fit(train_data)
+>>> predictions = trained_model.transform(test_data)
+>>>
+>>> # final_result = predictions.select("prediction", "trip_duration").rdd
+... print(trained_model)
+DecisionTreeRegressionModel: uid=DecisionTreeRegressor_2755a99312ff, depth=3, numNodes=15, numFeatures=7
+>>> print("RMSE for Regression Tree:", rmseEvaluator.evaluate(predictions))
+RMSE for Regression Tree: -3049.201030260845
+>>> print("MAE for Regression Tree:", maeEvaluator.evaluate(predictions))
+MAE for Regression Tree: 421.243265735198
+>>>
+>>> """
+... DecisionTreeRegressionModel: uid=DecisionTreeRegressor_826b1c042824, depth=3, numNodes=15, numFeatures=7
+...   If (feature 6 <= 2.7002733639393384)
+...    If (feature 6 <= 1.3071311166631614)
+...     If (feature 6 <= 0.825910208978972)
+...      Predict: 481.0347939172201
+...     Else (feature 6 > 0.825910208978972)
+...      Predict: 704.5021037177617
+...    Else (feature 6 > 1.3071311166631614)
+...     If (feature 6 <= 1.8821559421975278)
+...      Predict: 894.6080785101466
+...     Else (feature 6 > 1.8821559421975278)
+...      Predict: 1121.6659710628826
+...   Else (feature 6 > 2.7002733639393384)
+...    If (feature 6 <= 9.536082191310886)
+...     If (feature 6 <= 5.077256060808084)
+...      Predict: 1422.6793786966068
+...     Else (feature 6 > 5.077256060808084)
+...      Predict: 1959.3655415697908
+...    Else (feature 6 > 9.536082191310886)
+...     If (feature 4 <= 19.5)
+...      Predict: 3028.8669666598485
+...     Else (feature 4 > 19.5)
+...      Predict: 2309.267728834739
+... """
+'\nDecisionTreeRegressionModel: uid=DecisionTreeRegressor_826b1c042824, depth=3, numNodes=15, numFeatures=7\n  If (feature 6 <= 2.7002733639393384)\n   If (feature 6 <= 1.3071311166631614)\n    If (feature 6 <= 0.825910208978972)\n     Predict: 481.0347939172201\n    Else (feature 6 > 0.825910208978972)\n     Predict: 704.5021037177617\n   Else (feature 6 > 1.3071311166631614)\n    If (feature 6 <= 1.8821559421975278)\n     Predict: 894.6080785101466\n    Else (feature 6 > 1.8821559421975278)\n     Predict: 1121.6659710628826\n  Else (feature 6 > 2.7002733639393384)\n   If (feature 6 <= 9.536082191310886)\n    If (feature 6 <= 5.077256060808084)\n     Predict: 1422.6793786966068\n    Else (feature 6 > 5.077256060808084)\n     Predict: 1959.3655415697908\n   Else (feature 6 > 9.536082191310886)\n    If (feature 4 <= 19.5)\n     Predict: 3028.8669666598485\n    Else (feature 4 > 19.5)\n     Predict: 2309.267728834739\n'
+>>> # Get the count for distinct output classes
+... distinct_classes = predictions.select("prediction").distinct()
+>>> distinct_classes_count = distinct_classes.count()
+>>> print("Number of Distinct classes:" ,distinct_classes_count)
+Number of Distinct classes: 8
+>>>
+>>> all_data_through_model = trained_model.transform(model_data)
+>>> (train_data, test_data) = all_data_through_model.randomSplit([0.8,0.2])
+>>>
+>>>
+>>> dict_lin_reg = {}
+>>> best_lin_reg = {}
+>>> output = {}
+>>> for i in distinct_classes.collect():
+...     print("Currently running for:" , i[0])
+...     required_dataframe = train_data.filter(train_data.prediction == i[0]).drop("prediction")
+...     temp_lin_reg = LinearRegression().setFeaturesCol("features").setLabelCol("trip_duration")
+...     grid_builder = ParamGridBuilder() \
+...         .addGrid(temp_lin_reg.regParam,[0.5,1,100,1000]) \
+...         .addGrid(temp_lin_reg.elasticNetParam,[0.2,0.5,0.8,1]) \
+...         .addGrid(temp_lin_reg.epsilon,[2,3,5,9,50]) \
+...         .addGrid(temp_lin_reg.maxIter,[10, 20, 50, 75]) \
+...         .build()
+...     cross_validator = CrossValidator(estimator=temp_lin_reg,estimatorParamMaps=grid_builder,evaluator=rmseEvaluator,numFolds=10)
+...     cv_model = cross_validator.fit(required_dataframe)
+...     dict_lin_reg[i[0]] = cv_model
+...     best_lin_reg[i[0]] = cv_model.bestModel
+...     output[i[0]] = best_lin_reg[i[0]].transform(test_data.filter(test_data.prediction == i[0]).drop("prediction"))
+...     print("RMSE for",i[0]," = ",rmseEvaluator.evaluate(output[i[0]]))
+...
+Currently running for: 1407.0531613171001
+RMSE for 1407.0531613171001  =  -3147.428566952644
+Currently running for: 866.4774227608685
+RMSE for 866.4774227608685  =  -3063.841849491665
+Currently running for: 640.5504664094071
+RMSE for 640.5504664094071  =  -3047.193455265826
+Currently running for: 1910.3320135515735
+RMSE for 1910.3320135515735  =  -3333.874661194455
+Currently running for: 2270.2466243508366
+RMSE for 2270.2466243508366  =  -2567.5017066543437
+Currently running for: 434.20155446304244
+RMSE for 434.20155446304244  =  -2933.77913620911
+Currently running for: 2958.9973737309033
+RMSE for 2958.9973737309033  =  -3548.9259719683546
+Currently running for: 1103.7688907766023
+RMSE for 1103.7688907766023  =  -3518.8320403719863
+>>> results = list(output.values())
+>>> final = results.pop(0)
+>>> for elements in results:
+...     final = final.union(elements).distinct()
+...
+>>> print("RMSE for Enhanced Regression Tree: ",rmseEvaluator.evaluate(final))
+RMSE for Enhanced Regression Tree:  -3136.940845038816
+>>> print("MASE for Enhanced Regression Tree: ",maeEvaluator.evaluate(final))
+RMSE for Enhanced Regression Tree:  427.54658163958146
